@@ -123,7 +123,7 @@ void GPIO::list(std::string const& gpio_chip)
         }
     }
 }
-
+/*
 //TODO update function to ABI v2
 //TODO return value should indicate sucessfull writing
 void GPIO::Pin::write(bool value)
@@ -159,6 +159,56 @@ void GPIO::Pin::write(bool value)
          usleep(2000000);
     }
     close(rq.fd);
+}
+*/
+void GPIO::Pin::write(bool newValue)
+{
+    struct gpio_v2_line_request linereq;
+    struct gpio_v2_line_config lineconf;
+    struct gpio_v2_line_values value;
+    int retval;
+
+    FD fd{open(gpio_chip.c_str(), O_RDONLY)};
+    if (fd.get_fd() < 0)
+    {
+        fmt::print("Unabled to open {}: {} \n", gpio_chip, strerror(errno));
+        return;
+    }
+
+    memset(&linereq, 0, sizeof(linereq));
+    memset(&lineconf, 0, sizeof(lineconf));
+
+    lineconf.flags = GPIO_V2_LINE_FLAG_INPUT;
+
+    linereq.offsets[0] = offset;
+    linereq.config = lineconf;
+    linereq.num_lines = 1;
+
+
+    retval = ioctl(fd.get_fd(), GPIO_V2_GET_LINE_IOCTL, &linereq);
+    if (retval == -1)
+    {
+        fmt::print("Unable to get line handle from ioctl : {} \n", strerror(errno));
+        return;
+    }
+
+    memset(&value, 0, sizeof(value));
+    value.mask = linereq.offsets[0];
+    value.bits = newValue;
+
+    retval = ioctl(linereq.fd, GPIO_V2_LINE_SET_VALUES_IOCTL, &value);
+    if (retval == -1)
+    {
+        fmt::print("Unable to get line value using ioctl : {} \n", strerror(errno));
+        close(linereq.fd);
+        return;
+    }
+    else
+    {
+        fmt::print("Value of GPIO at offset {} (INPUT mode) on chip {} set to: {}\n", offset, gpio_chip, value.bits);
+        close(linereq.fd);
+        return;
+    }
 }
 
 //TODO Better Error Handling
