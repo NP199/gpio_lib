@@ -130,10 +130,11 @@ void GPIO::Pin::write(bool value)
 {
     struct gpiohandle_request rq;
     struct gpiohandle_data data;
-    int fd, ret;
+    int ret;
     fmt::print("Write value {} to GPIO at offset {} (OUTPUT mode) on chip {}\n", value, offset, gpio_chip);
-    fd = open(gpio_chip.c_str(), O_RDONLY);
-    if (fd < 0)
+
+    FD fd{open(gpio_chip.c_str(), O_RDONLY)};
+    if (fd.get_fd() < 0)
     {
         fmt::print("Unabled to open {}: {} \n", gpio_chip, strerror(errno));
         return;
@@ -141,8 +142,7 @@ void GPIO::Pin::write(bool value)
     rq.lineoffsets[0] = offset;
     rq.flags = GPIOHANDLE_REQUEST_OUTPUT;
     rq.lines = 1;
-    ret = ioctl(fd, GPIO_GET_LINEHANDLE_IOCTL, &rq);
-    close(fd);
+    ret = ioctl(fd.get_fd(), GPIO_GET_LINEHANDLE_IOCTL, &rq);
     if (ret == -1)
     {
         fmt::print("Unable to line handle from ioctl : {} \n", strerror(errno));
@@ -167,10 +167,10 @@ int GPIO::Pin::read()
     struct gpio_v2_line_request linereq;
     struct gpio_v2_line_config lineconf;
     struct gpio_v2_line_values value;
-    int fd, retval;
+    int retval;
 
-    fd = open(gpio_chip.c_str(), O_RDONLY);
-    if (fd < 0)
+    FD fd{open(gpio_chip.c_str(), O_RDONLY)};
+    if (fd.get_fd() < 0)
     {
         fmt::print("Unabled to open {}: {} \n", gpio_chip, strerror(errno));
         return -1;
@@ -186,8 +186,7 @@ int GPIO::Pin::read()
     linereq.num_lines = 1;
 
 
-    retval = ioctl(fd, GPIO_V2_GET_LINE_IOCTL, &linereq);
-    close(fd);
+    retval = ioctl(fd.get_fd(), GPIO_V2_GET_LINE_IOCTL, &linereq);
     if (retval == -1)
     {
         fmt::print("Unable to get line handle from ioctl : {} \n", strerror(errno));
@@ -201,15 +200,15 @@ int GPIO::Pin::read()
     if (retval == -1)
     {
         fmt::print("Unable to get line value using ioctl : {} \n", strerror(errno));
+        close(linereq.fd);
         return -3;
     }
     else
     {
         fmt::print("Value of GPIO at offset {} (INPUT mode) on chip {}: {}\n", offset, gpio_chip, value.bits);
+        close(linereq.fd);
         return value.bits;
     }
-    close(linereq.fd);
-
 }
 
 void GPIO::Pin::poll_falling()
@@ -220,9 +219,10 @@ void GPIO::Pin::poll_falling()
     struct gpio_v2_line_attribute lineattr;
     struct pollfd pfd;
 
-    int fd, retval;
-    fd = open(gpio_chip.c_str(), O_RDONLY);
-    if (fd < 0)
+    int retval;
+
+    FD fd{open(gpio_chip.c_str(), O_RDONLY)};
+    if (fd.get_fd() < 0)
     {
         fmt::print("Unabled to open {}: {} \n", gpio_chip, strerror(errno));
         return;
@@ -247,16 +247,15 @@ void GPIO::Pin::poll_falling()
     linereq.num_lines = 1;
     //linereq.event_buffer_size = 32;
 
-    retval = ioctl(fd, GPIO_V2_GET_LINE_IOCTL, &linereq);
+    retval = ioctl(fd.get_fd(), GPIO_V2_GET_LINE_IOCTL, &linereq);
 
-    close(fd);
     if (retval == -1)
     {
         fmt::print("Unable to get line event from ioctl : {} \n", strerror(errno));
-        close(fd);
         return;
     }
     pfd.fd = linereq.fd;
+    close(linereq.fd);
     pfd.events = POLLIN;
     retval = poll(&pfd, 1, -1);
     if (retval == -1)
@@ -267,7 +266,7 @@ void GPIO::Pin::poll_falling()
     {
         fmt::print("Falling edge event on GPIO offset: {}, of {}\n", offset, gpio_chip);
     }
-    close(linereq.fd);
+    close(pfd.fd);
 }
 
 //TODO update function to ABI v2
@@ -275,9 +274,10 @@ void GPIO::Pin::poll_rising()
 {
     struct gpioevent_request rq;
     struct pollfd pfd;
-    int fd, ret;
-    fd = open(gpio_chip.c_str(), O_RDONLY);
-    if (fd < 0)
+    int ret;
+
+    FD fd{open(gpio_chip.c_str(), O_RDONLY)};
+    if (fd.get_fd() < 0)
     {
         fmt::print("Unabled to open {}: {} \n", gpio_chip, strerror(errno));
         return;
@@ -286,16 +286,15 @@ void GPIO::Pin::poll_rising()
 
     rq.lineoffset = offset;
     rq.eventflags = GPIOEVENT_EVENT_RISING_EDGE;
-    ret = ioctl(fd, GPIO_GET_LINEEVENT_IOCTL, &rq);
+    ret = ioctl(fd.get_fd(), GPIO_GET_LINEEVENT_IOCTL, &rq);
 
-    close(fd);
     if (ret == -1)
     {
         fmt::print("Unable to get line event from ioctl : {} \n", strerror(errno));
-        close(fd);
         return;
     }
     pfd.fd = rq.fd;
+    close(rq.fd);
     pfd.events = POLLIN;
     ret = poll(&pfd, 1, -1);
     if (ret == -1)
@@ -306,5 +305,5 @@ void GPIO::Pin::poll_rising()
     {
         fmt::print("RISING edge event on GPIO offset: {}, of {}\n", offset, gpio_chip);
     }
-    close(rq.fd);
+    close(pfd.fd);
 }
