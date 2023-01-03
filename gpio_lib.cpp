@@ -125,7 +125,6 @@ void GPIO::list(std::string const& gpio_chip)
 }
 /*
 //TODO update function to ABI v2
-//TODO return value should indicate sucessfull writing
 void GPIO::Pin::write(bool value)
 {
     struct gpiohandle_request rq;
@@ -161,6 +160,8 @@ void GPIO::Pin::write(bool value)
     close(rq.fd);
 }
 */
+
+//TODO return value should indicate sucessfull writing
 void GPIO::Pin::write(bool newValue)
 {
     struct gpio_v2_line_request linereq;
@@ -178,7 +179,7 @@ void GPIO::Pin::write(bool newValue)
     memset(&linereq, 0, sizeof(linereq));
     memset(&lineconf, 0, sizeof(lineconf));
 
-    lineconf.flags = GPIO_V2_LINE_FLAG_INPUT;
+    lineconf.flags = GPIO_V2_LINE_FLAG_OUTPUT;
 
     linereq.offsets[0] = offset;
     linereq.config = lineconf;
