@@ -29,12 +29,12 @@ namespace GPIO {
         Pin(std::string const& gpio_chip_, int offset_);
         ~Pin();
         void write(bool newValue);
-        int read();
-        void poll_(std::uint16_t bitmask);
+        bool read();
         void poll_falling();
         void poll_rising();
 
         private:
+        void poll_(std::uint16_t bitmask);
         int const offset;
         std::string const gpio_chip;
     };
